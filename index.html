@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="color-scheme" content="light dark">
+<title>Mu導遊的沖繩行程</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌺%3C/text%3E%3C/svg%3E">
+<!--
+  Mu導遊 v2 行程網頁（團員版）
+  - 單一檔案，沒有外部資源，網路不好也能開
+  - 資料來源：GAS 的 ?action=trip（公開行程 JSON，已用 public_title，不含人名、成員、帳務）
+    顯示順序：有網路時抓最新 → 存進這支手機的瀏覽器快取 → 沒網路用快取 → 都沒有就用本檔內建的快照
+  - 換旅程：改試算表，再到 GAS 執行 exportPublicTripJson()，把印出的 JSON 貼到下方 SNAPSHOT（離線保險）
+  - 上線前請把 API_URL 填成「GAS 部署網址?action=trip」
+  - 測試：網址後面加 ?now=2026-12-12T14:00 可以模擬「現在」（旅遊地當地時間）
+  - 網址後面加 #all 直接開全部行程、#check 直接開行前提醒
+-->
+<style>
+:root {
+  --bg: #F2F7F9;
+  --surface: #FFFFFF;
+  --text: #112A40;
+  --muted: #4F6B7B;
+  --line: #C6D9E1;
+  --band: #17395A;
+  --on-band: #FFFFFF;
+  --accent: #D92D4B;
+  --on-accent: #FFFFFF;
+  --accent-soft: #FDE6EA;
+  --sea: #176E7B;
+  --sea-soft: #DDF0F2;
+  --sun: #F0B429;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0B1720;
+    --surface: #13263A;
+    --text: #EAF3F7;
+    --muted: #A3BCCA;
+    --line: #29445A;
+    --band: #1E4A73;
+    --on-band: #FFFFFF;
+    --accent: #FF6A82;
+    --on-accent: #2A0710;
+    --accent-soft: #3A1A26;
+    --sea: #66C7D4;
+    --sea-soft: #153A44;
+    --sun: #F0B429;
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 72px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "Heiti TC", sans-serif;
+  font-size: 20px;
+  line-height: 1.6;
+}
+button { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* 頂部標題：深藍底配紅型風格的小圓點 */
+.top {
+  background-color: var(--band);
+  background-image:
+    radial-gradient(circle at 12px 12px, rgba(255,255,255,.12) 3px, transparent 4px),
+    radial-gradient(circle at 36px 36px, rgba(240,180,41,.22) 3px, transparent 4px);
+  background-size: 48px 48px;
+  color: var(--on-band);
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 20px 18px;
+}
+.top h1 { margin: 0; font-size: 26px; line-height: 1.3; letter-spacing: .02em; }
+.top p { margin: 4px 0 0; font-size: 17px; opacity: .85; }
+
+main { max-width: 640px; margin: 0 auto; padding: 16px 16px 130px; }
+.page[hidden] { display: none; }
+
+/* 日期標題 */
+.dayhead {
+  background: var(--band);
+  color: var(--on-band);
+  border-radius: 14px 14px 0 0;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.dayhead .date { font-size: 40px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.dayhead .meta { display: flex; flex-direction: column; gap: 2px; }
+.dayhead .wd { font-size: 18px; opacity: .85; }
+.dayhead .ttl { font-size: 20px; font-weight: 700; line-height: 1.35; }
+.daybadge {
+  margin-left: auto;
+  align-self: flex-start;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 800;
+  font-size: 17px;
+  padding: 2px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.daybody {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 14px 14px;
+  padding: 6px 0 8px;
+  margin-bottom: 24px;
+}
+.note, .tip {
+  margin: 10px 14px 4px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 18px;
+}
+.note { background: var(--sea-soft); border-left: 6px solid var(--sea); }
+.tip { background: var(--accent-soft); border-left: 6px solid var(--accent); }
+
+/* 時間軸 */
+.tl { list-style: none; margin: 0; padding: 4px 0; }
+.tl li {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 4px 10px;
+  padding: 12px 16px 12px 12px;
+  border-left: 6px solid transparent;
+  border-bottom: 1px solid var(--line);
+  position: relative;
+}
+.tl li:last-child { border-bottom: 0; }
+.tl .t { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.25; text-align: right; }
+.tl .what { font-size: 20px; line-height: 1.5; }
+.badge {
+  display: inline-block;
+  font-size: 15px;
+  font-weight: 800;
+  padding: 0 10px;
+  border-radius: 999px;
+  margin-right: 8px;
+  vertical-align: 2px;
+}
+.tl li.past { opacity: .5; }
+.tl li.now { background: var(--accent-soft); border-left-color: var(--accent); }
+.tl li.now .badge { background: var(--accent); color: var(--on-accent); }
+.tl li.next { background: var(--sea-soft); border-left-color: var(--sea); }
+.tl li.next .badge { background: var(--sea); color: var(--surface); }
+
+.map {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 2px solid var(--sea);
+  color: var(--sea);
+  font-size: 18px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.map:active { background: var(--sea-soft); }
+
+/* 還沒出發／已結束 */
+.hello {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 26px 20px;
+  text-align: center;
+}
+.hello .flower { font-size: 56px; line-height: 1.1; }
+.hello p { margin: 10px 0 0; font-size: 22px; font-weight: 700; line-height: 1.5; }
+.hello small { display: block; margin-top: 8px; font-size: 18px; color: var(--muted); font-weight: 400; }
+.btn {
+  margin-top: 18px;
+  min-height: 56px;
+  padding: 0 28px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.btn.ghost { background: transparent; color: var(--muted); border: 2px solid var(--line); font-size: 17px; min-height: 48px; font-weight: 700; }
+
+/* 全部行程的日期跳轉 */
+.jump {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  margin: 0 -16px 16px;
+  padding: 10px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.jump a {
+  flex: 1;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 19px;
+  font-weight: 800;
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+.jump a:active { border-color: var(--accent); }
+
+details.plan {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin-bottom: 14px;
+}
+details.plan summary {
+  min-height: 60px;
+  padding: 14px 18px;
+  font-size: 21px;
+  font-weight: 800;
+  cursor: pointer;
+  list-style-position: inside;
+}
+details.plan .inner { padding: 0 18px 14px; font-size: 19px; }
+details.plan h3 { margin: 12px 0 4px; font-size: 19px; }
+details.plan p { margin: 0 0 8px; }
+
+/* 行前提醒 */
+.check-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 4px 2px 6px; }
+.check-head h2 { margin: 0; font-size: 24px; }
+.progress { font-size: 20px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+.hint { margin: 0 2px 14px; font-size: 16px; color: var(--muted); }
+.group {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.group h3 { margin: 0; padding: 10px 16px; font-size: 18px; background: var(--sea-soft); color: var(--sea); }
+.group label {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-height: 60px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 20px;
+  cursor: pointer;
+}
+.group h3 + label { border-top: 0; }
+.group input[type=checkbox] { width: 30px; height: 30px; flex: none; margin: 2px 0 0; accent-color: var(--accent); }
+.group input:checked + span { text-decoration: line-through; color: var(--muted); }
+.reset-wrap { text-align: center; }
+
+/* 底部導覽 */
+nav.tabs {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 10;
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+nav.tabs button {
+  flex: 1;
+  min-height: 68px;
+  padding: 8px 4px 6px;
+  border: 0;
+  border-top: 5px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  cursor: pointer;
+}
+nav.tabs button .ico { font-size: 26px; line-height: 1.2; }
+nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: var(--accent); font-weight: 800; }
+
+.foot { margin: 8px 4px 0; font-size: 16px; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1 id="ttl">🌺 旅程</h1>
+  <p id="sub">Mu導遊的行程小冊</p>
+</header>
+
+<main>
+  <section id="page-today" class="page" aria-label="今日行程"></section>
+  <section id="page-all" class="page" aria-label="全部行程" hidden></section>
+  <section id="page-check" class="page" aria-label="行前提醒" hidden></section>
+  <noscript><p>這個頁面需要開啟 JavaScript 才能顯示行程。</p></noscript>
+</main>
+
+<nav class="tabs" aria-label="主選單">
+  <button type="button" data-tab="today"><span class="ico">📅</span>今日行程</button>
+  <button type="button" data-tab="all"><span class="ico">🗺️</span>全部行程</button>
+  <button type="button" data-tab="check"><span class="ico">🧳</span>行前提醒</button>
+</nav>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- 設定（上線前要改） ---------- */
+  // GAS 部署網址 + ?action=trip。留空就只用快取與內建快照
+  var API_URL = '';
+  var CACHE_KEY = 'mu-trip-cache-v2';
+
+  // 內建離線快照：由 GAS 的 exportPublicTripJson() 產生，換旅程時整段替換
+  var SNAPSHOT = {
+  "generatedAt": "2026-11-03T00:00:00.000Z",
+  "cfg": {
+    "trip_name": "沖繩自駕",
+    "trip_short": "沖繩",
+    "timezone": "Asia/Tokyo",
+    "web_title": "🌺 沖繩 4 天 3 夜自駕"
+  },
+  "days": [
+    {
+      "date": "2026-12-10",
+      "title": "抵達那霸",
+      "note": "本日單軌代步，大家先好好休息",
+      "tip": "",
+      "items": [
+        {
+          "t": "17:50",
+          "title": "抵達那霸機場",
+          "place": "那霸機場"
+        },
+        {
+          "t": "18:40",
+          "title": "搭乘單軌電車前往市區",
+          "place": ""
+        },
+        {
+          "t": "19:10",
+          "title": "入住「沖繩逸之彩飯店」",
+          "place": "沖繩逸之彩飯店"
+        },
+        {
+          "t": "19:30",
+          "title": "國際通晚餐／飯店免費宵夜拉麵與生啤酒",
+          "place": "國際通"
+        }
+      ]
+    },
+    {
+      "date": "2026-12-11",
+      "title": "接機、鬆餅與燒肉",
+      "note": "",
+      "tip": "",
+      "items": [
+        {
+          "t": "11:30",
+          "title": "飯店旁取車（確認幼兒安全座椅安裝妥當）",
+          "place": ""
+        },
+        {
+          "t": "12:15",
+          "title": "兩位團友班機抵達",
+          "place": ""
+        },
+        {
+          "t": "13:30",
+          "title": "那霸機場順利會合接機",
+          "place": "那霸機場"
+        },
+        {
+          "t": "14:00",
+          "title": "瀨長島「幸福鬆餅」（午茶看海）",
+          "place": "幸福鬆餅 瀨長島"
+        },
+        {
+          "t": "16:00",
+          "title": "DMM 水族館＋iias 豐崎購物中心",
+          "place": "DMM 水族館 沖繩"
+        },
+        {
+          "t": "18:30",
+          "title": "返回市區飯店停車休息",
+          "place": ""
+        },
+        {
+          "t": "19:30",
+          "title": "步行至國際通「琉球之牛」享用頂級燒肉",
+          "place": "琉球之牛 國際通店"
+        }
+      ]
+    },
+    {
+      "date": "2026-12-12",
+      "title": "神社、購物、美國村煙火",
+      "note": "",
+      "tip": "🎆 煙火提醒：施放約 3 分鐘，冬季遇強風或大雨可能無預警取消，下午請先確認官方公告。晚餐建議提早訂位，或 19:40 到海濱步道卡位。",
+      "items": [
+        {
+          "t": "10:00",
+          "title": "波上宮參拜",
+          "place": "波上宮"
+        },
+        {
+          "t": "11:30",
+          "title": "永旺夢樂城沖繩來客夢 午餐＋採買（有寶可夢中心與童裝）",
+          "place": "AEON MALL 沖繩來客夢"
+        },
+        {
+          "t": "15:30",
+          "title": "抵達美國村（散步、逛特色小店）",
+          "place": "美國村 北谷"
+        },
+        {
+          "t": "18:00",
+          "title": "美國村海景日落晚餐",
+          "place": "美國村 北谷"
+        },
+        {
+          "t": "20:00",
+          "title": "欣賞美國村週六限定煙火秀，結束後開車回那霸",
+          "place": "北谷 美國村 海濱公園"
+        }
+      ]
+    },
+    {
+      "date": "2026-12-13",
+      "title": "海鮮、Outlet 與賦歸",
+      "note": "",
+      "tip": "",
+      "items": [
+        {
+          "t": "09:30",
+          "title": "飯店退房（行李直接上車）",
+          "place": ""
+        },
+        {
+          "t": "10:30",
+          "title": "糸滿魚市場（海鮮早午餐）",
+          "place": "糸滿魚市場"
+        },
+        {
+          "t": "12:00",
+          "title": "ASHIBINAA 暢貨中心（採買）",
+          "place": "沖繩 ASHIBINAA Outlet"
+        },
+        {
+          "t": "15:15",
+          "title": "開車返回那霸市區",
+          "place": ""
+        },
+        {
+          "t": "16:00",
+          "title": "飯店旁完成還車，轉乘單軌或計程車",
+          "place": ""
+        },
+        {
+          "t": "17:00",
+          "title": "抵達那霸機場報到、出境回台",
+          "place": "那霸機場"
+        }
+      ]
+    }
+  ],
+  "backup": [
+    {
+      "section": "☔ 雨天／室內備案",
+      "name": "DMM 水族館＋iias 豐崎購物中心",
+      "text": "12/11 下午若天氣不佳，不用在瀨長島待太久，可提早去水族館避雨。"
+    },
+    {
+      "section": "☔ 雨天／室內備案",
+      "name": "PARCO CITY",
+      "text": "12/12 中午若不想逛永旺夢樂城，可改去臨海的 PARCO CITY 逛街吃午餐，同樣在室內，離美國村也不遠。"
+    },
+    {
+      "section": "👶 親子輕鬆備案",
+      "name": "新原海灘（透底玻璃船）",
+      "text": "最後一天南部行程若有空檔，可搭玻璃船看海龜與熱帶魚，不用弄濕身體。"
+    },
+    {
+      "section": "🍦 點心備案",
+      "name": "Blue Seal 冰淇淋",
+      "text": "推薦點「起司蛋糕＋紫薯泥」可麗餅，加價換成金桔檸檬（Shikwasa）冰淇淋，酸甜解膩。"
+    }
+  ],
+  "checklist": [
+    {
+      "group": "證件與駕駛",
+      "item": "護照"
+    },
+    {
+      "group": "證件與駕駛",
+      "item": "台灣駕照"
+    },
+    {
+      "group": "證件與駕駛",
+      "item": "駕照日文譯本（只有持有者能開車）"
+    },
+    {
+      "group": "證件與駕駛",
+      "item": "租車確認單"
+    },
+    {
+      "group": "小朋友",
+      "item": "推車"
+    },
+    {
+      "group": "小朋友",
+      "item": "備品（尿布、濕紙巾、備用衣物、水壺零食）"
+    },
+    {
+      "group": "網路與付款",
+      "item": "eSIM 或 Wi-Fi 分享器"
+    },
+    {
+      "group": "網路與付款",
+      "item": "日幣現金"
+    },
+    {
+      "group": "網路與付款",
+      "item": "信用卡"
+    },
+    {
+      "group": "網路與付款",
+      "item": "行動電源與充電線"
+    }
+  ]
+};
+
+  var WD = ['日', '一', '二', '三', '四', '五', '六'];
+
+  /* ---------- 資料 ---------- */
+  var DATA = null;
+  var TRIP = [], PLANS = [], CHECK = [], TZ = 'Asia/Tokyo', TRIP_SHORT = '當地', CHECK_KEY = 'mu-check-v2';
+
+  function usable(d) { return !!(d && d.days && d.days.length); }
+  function loadCached() {
+    try { var j = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); return usable(j) ? j : null; } catch (e) { return null; }
+  }
+  function saveCached(d) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(d)); } catch (e) { /* 存不了就算了 */ } }
+  function stamp(d) { return (d && d.generatedAt) || ''; }
+  function fingerprint(d) { return JSON.stringify([d.cfg, d.days, d.backup, d.checklist]); }
+
+  // 內建快照與手機快取，取比較新的那一份
+  function pickInitial() {
+    var cached = loadCached();
+    if (cached && stamp(cached) >= stamp(SNAPSHOT)) return cached;
+    return SNAPSHOT;
+  }
+
+  // 把資料轉成畫面用的結構
+  function build() {
+    var cfg = DATA.cfg || {};
+    TZ = cfg.timezone || 'Asia/Tokyo';
+    TRIP_SHORT = cfg.trip_short || '當地';
+    TRIP = DATA.days.map(function (d, i) {
+      return {
+        date: d.date,
+        short: d.date.slice(5).replace('-', '/'),
+        wd: '週' + WD[new Date(d.date + 'T00:00:00Z').getUTCDay()],
+        title: d.title || '',
+        day: i + 1,
+        note: d.note || '',
+        tip: d.tip || '',
+        items: d.items.map(function (it) { return [it.t, it.title, it.place || null]; })
+      };
+    });
+    PLANS = [];
+    (DATA.backup || []).forEach(function (b) {
+      var p = null;
+      PLANS.forEach(function (x) { if (x[0] === b.section) p = x; });
+      if (!p) { p = [b.section, []]; PLANS.push(p); }
+      p[1].push([b.name || '', b.text || '']);
+    });
+    CHECK = [];
+    (DATA.checklist || []).forEach(function (c) {
+      var g = null;
+      CHECK.forEach(function (x) { if (x[0] === c.group) g = x; });
+      if (!g) { g = [c.group || '清單', []]; CHECK.push(g); }
+      g[1].push(c.item);
+    });
+    CHECK_KEY = 'mu-check-' + TRIP[0].date;
+
+    var first = TRIP[0], last = TRIP[TRIP.length - 1];
+    $('ttl').textContent = cfg.web_title || ('🌺 ' + (cfg.trip_name || '旅程'));
+    $('sub').textContent = 'Mu導遊的行程小冊　' + first.short + ' – ' + last.short;
+    document.title = 'Mu導遊的' + (cfg.trip_short || '') + '行程';
+  }
+
+  /* ---------- 小工具 ---------- */
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function $(id) { return document.getElementById(id); }
+  function mapUrl(place) {
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place);
+  }
+  function toMin(t) {
+    var p = t.split(':');
+    return parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
+  }
+  function daysBetween(a, b) {
+    var pa = a.split('-'), pb = b.split('-');
+    return Math.round((Date.UTC(+pb[0], +pb[1] - 1, +pb[2]) - Date.UTC(+pa[0], +pa[1] - 1, +pa[2])) / 86400000);
+  }
+
+  // 「現在」一律用旅遊地（Config 的 timezone）時間，不受手機所在地時區影響
+  function localNow() {
+    var m = /[?&]now=(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(location.search);
+    if (m) return { date: m[1], min: parseInt(m[2], 10) * 60 + parseInt(m[3], 10) };
+    var parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    }).formatToParts(new Date());
+    function g(type) {
+      for (var i = 0; i < parts.length; i++) if (parts[i].type === type) return parts[i].value;
+      return '00';
+    }
+    var h = g('hour');
+    if (h === '24') h = '00';
+    return { date: g('year') + '-' + g('month') + '-' + g('day'), min: parseInt(h, 10) * 60 + parseInt(g('minute'), 10) };
+  }
+
+  /* ---------- 版面片段 ---------- */
+  function dayHead(d) {
+    return '<div class="dayhead">' +
+      '<div class="date">' + esc(d.short) + '</div>' +
+      '<div class="meta"><span class="wd">' + esc(d.wd) + '</span><span class="ttl">' + esc(d.title) + '</span></div>' +
+      '<span class="daybadge">Day ' + d.day + '</span>' +
+      '</div>';
+  }
+
+  function itemHtml(it, state) {
+    var badge = state === 'now' ? '<span class="badge">現在</span>' : state === 'next' ? '<span class="badge">下一個</span>' : '';
+    var map = it[2] ? '<br><a class="map" href="' + mapUrl(it[2]) + '" target="_blank" rel="noopener">📍 地圖導航</a>' : '';
+    return '<li class="' + (state || '') + '">' +
+      '<span class="t">' + esc(it[0]) + '</span>' +
+      '<span class="what">' + badge + esc(it[1]) + map + '</span></li>';
+  }
+
+  function dayBody(d, states) {
+    var html = '<div class="daybody">';
+    if (d.note) html += '<div class="note">📝 ' + esc(d.note) + '</div>';
+    html += '<ol class="tl">';
+    d.items.forEach(function (it, i) { html += itemHtml(it, states ? states[i] : ''); });
+    html += '</ol>';
+    if (d.tip) html += '<div class="tip">' + esc(d.tip) + '</div>';
+    return html + '</div>';
+  }
+
+  /* ---------- 今日行程 ---------- */
+  function renderToday() {
+    var now = localNow();
+    var el = $('page-today');
+    var day = null;
+    TRIP.forEach(function (d) { if (d.date === now.date) day = d; });
+
+    if (!day) {
+      var first = TRIP[0], last = TRIP[TRIP.length - 1];
+      if (now.date < first.date) {
+        var n = daysBetween(now.date, first.date);
+        el.innerHTML = '<div class="hello"><div class="flower">🌺</div>' +
+          '<p>還沒出發啦～<br>距離 ' + esc(first.short) + ' 出發還有 ' + n + ' 天！</p>' +
+          '<small>Mu導遊正在' + esc(TRIP_SHORT) + '曬太陽，等小Mu的貴賓們來玩 🏝️</small>' +
+          '<button type="button" class="btn" data-go="all">先看全部行程</button></div>';
+      } else if (now.date > last.date) {
+        el.innerHTML = '<div class="hello"><div class="flower">🌺</div>' +
+          '<p>旅程結束囉！<br>謝謝小Mu的貴賓們</p>' +
+          '<small>Mu導遊玩得好開心，下次再一起出發～</small>' +
+          '<button type="button" class="btn" data-go="all">回顧全部行程</button></div>';
+      } else {
+        el.innerHTML = '<div class="hello"><p>今天沒有安排行程</p></div>';
+      }
+      return;
+    }
+
+    // 判斷每個行程的狀態：已過、現在、下一個
+    var mins = day.items.map(function (it) { return toMin(it[0]); });
+    var cur = -1, nxt = -1, i;
+    for (i = 0; i < mins.length; i++) if (mins[i] <= now.min) cur = i;
+    for (i = 0; i < mins.length; i++) if (mins[i] > now.min) { nxt = i; break; }
+    var states = mins.map(function (m, idx) {
+      if (idx === cur) return 'now';
+      if (idx === nxt) return 'next';
+      return idx < cur ? 'past' : '';
+    });
+    // 最後一個行程開始超過 2 小時，就全部淡化
+    var finished = cur === mins.length - 1 && now.min - mins[cur] > 120;
+    if (finished) states = states.map(function () { return 'past'; });
+
+    var html = '<div>' + dayHead(day) + dayBody(day, states) + '</div>';
+    if (finished) html += '<p class="foot">今天的行程都走完囉，辛苦了！</p>';
+    html += '<p class="foot">想問問題，請在群組 @Mu導遊</p>';
+    el.innerHTML = html;
+  }
+
+  /* ---------- 全部行程 ---------- */
+  function renderAll() {
+    var html = '<nav class="jump" aria-label="日期">';
+    TRIP.forEach(function (d) { html += '<a href="#day-' + d.day + '" data-jump="day-' + d.day + '">' + esc(d.short) + '</a>'; });
+    html += '</nav>';
+    TRIP.forEach(function (d) {
+      html += '<section id="day-' + d.day + '">' + dayHead(d) + dayBody(d, null) + '</section>';
+    });
+    PLANS.forEach(function (p) {
+      html += '<details class="plan"><summary>' + esc(p[0]) + '</summary><div class="inner">';
+      p[1].forEach(function (x) {
+        if (x[0]) html += '<h3>' + esc(x[0]) + '</h3>';
+        if (x[1]) html += '<p>' + esc(x[1]) + '</p>';
+      });
+      html += '</div></details>';
+    });
+    html += '<p class="foot">想問問題，請在群組 @Mu導遊</p>';
+    $('page-all').innerHTML = html;
+  }
+
+  /* ---------- 行前提醒（勾選狀態存在這支手機的瀏覽器） ---------- */
+  function loadChecked() {
+    try { return JSON.parse(localStorage.getItem(CHECK_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function saveChecked(obj) {
+    try { localStorage.setItem(CHECK_KEY, JSON.stringify(obj)); } catch (e) { /* 存不了就算了 */ }
+  }
+
+  function renderCheck() {
+    var checked = loadChecked();
+    var total = 0, done = 0;
+    var body = '';
+    CHECK.forEach(function (g, gi) {
+      body += '<div class="group"><h3>' + esc(g[0]) + '</h3>';
+      g[1].forEach(function (label, ii) {
+        var id = gi + '-' + ii;
+        total++;
+        if (checked[id]) done++;
+        body += '<label><input type="checkbox" data-id="' + id + '"' + (checked[id] ? ' checked' : '') + '><span>' + esc(label) + '</span></label>';
+      });
+      body += '</div>';
+    });
+    $('page-check').innerHTML =
+      '<div class="check-head"><h2>出發前確認</h2><span class="progress" id="progress">' + done + ' / ' + total + '</span></div>' +
+      '<p class="hint">打勾的紀錄只存在這支手機的瀏覽器裡，別人看不到。</p>' +
+      body +
+      '<div class="reset-wrap"><button type="button" class="btn ghost" id="reset">全部取消勾選</button></div>';
+    $('page-check').dataset.total = total;
+  }
+
+  /* ---------- 分頁切換 ---------- */
+  var TABS = ['today', 'all', 'check'];
+  var rendered = { all: false };
+  var current = 'today';
+
+  function show(tab, fromHash) {
+    if (TABS.indexOf(tab) < 0) tab = 'today';
+    current = tab;
+    TABS.forEach(function (t) { $('page-' + t).hidden = (t !== tab); });
+    var btns = document.querySelectorAll('nav.tabs button');
+    for (var i = 0; i < btns.length; i++) {
+      if (btns[i].getAttribute('data-tab') === tab) btns[i].setAttribute('aria-current', 'page');
+      else btns[i].removeAttribute('aria-current');
+    }
+    if (tab === 'today') renderToday();
+    if (tab === 'all' && !rendered.all) { renderAll(); rendered.all = true; }
+    if (tab === 'check') renderCheck();
+    if (!fromHash) {
+      try { history.replaceState(null, '', '#' + tab); } catch (e) { /* 部分內建瀏覽器不支援，忽略 */ }
+    }
+    window.scrollTo(0, 0);
+  }
+
+  function tabFromHash() {
+    var h = (location.hash || '').replace('#', '');
+    return TABS.indexOf(h) >= 0 ? h : 'today';
+  }
+
+  // 資料更新後，重新建構並重畫目前的分頁
+  function rerender() {
+    build();
+    rendered.all = false;
+    if (current === 'today') renderToday();
+    else if (current === 'all') { renderAll(); rendered.all = true; }
+    else renderCheck();
+  }
+
+  /* ---------- 有網路時抓最新資料 ---------- */
+  function refresh() {
+    if (!API_URL || typeof fetch !== 'function') return;
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 6000) : null;
+    fetch(API_URL, ctrl ? { signal: ctrl.signal } : {})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (timer) clearTimeout(timer);
+        if (!usable(d)) return;
+        if (fingerprint(d) !== fingerprint(DATA)) {
+          DATA = d;
+          saveCached(d);
+          rerender();
+        } else {
+          saveCached(d); // 內容相同也更新時間戳，下次離線可用
+        }
+      })
+      .catch(function () { /* 沒網路或逾時：繼續用現有資料 */ });
+  }
+
+  /* ---------- 事件 ---------- */
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    while (t && t !== document) {
+      if (t.getAttribute && t.getAttribute('data-tab')) { show(t.getAttribute('data-tab')); return; }
+      if (t.getAttribute && t.getAttribute('data-go')) { show(t.getAttribute('data-go')); return; }
+      if (t.getAttribute && t.getAttribute('data-jump')) {
+        e.preventDefault();
+        var target = $(t.getAttribute('data-jump'));
+        if (target) target.scrollIntoView();
+        return;
+      }
+      if (t.id === 'reset') { saveChecked({}); renderCheck(); return; }
+      t = t.parentNode;
+    }
+  });
+
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t && t.matches && t.matches('input[type=checkbox][data-id]')) {
+      var checked = loadChecked();
+      if (t.checked) checked[t.getAttribute('data-id')] = 1;
+      else delete checked[t.getAttribute('data-id')];
+      saveChecked(checked);
+      var total = parseInt($('page-check').dataset.total || '0', 10);
+      var done = document.querySelectorAll('#page-check input:checked').length;
+      $('progress').textContent = done + ' / ' + total;
+    }
+  });
+
+  window.addEventListener('hashchange', function () { show(tabFromHash(), true); });
+
+  // 每分鐘更新一次「現在／下一個」
+  setInterval(function () { if (!$('page-today').hidden) renderToday(); }, 60000);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) {
+      if (!$('page-today').hidden) renderToday();
+      refresh();
+    }
+  });
+
+  /* ---------- 啟動 ---------- */
+  DATA = pickInitial();
+  build();
+  show(tabFromHash(), true);
+  refresh();
+})();
+</script>
+</body>
+</html>
