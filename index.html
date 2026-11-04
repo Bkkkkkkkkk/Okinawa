@@ -327,7 +327,7 @@ nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: v
 
   /* ---------- 設定（上線前要改） ---------- */
   // GAS 部署網址 + ?action=trip。留空就只用快取與內建快照
-  var API_URL = 'https://script.google.com/macros/s/AKfycbw57rcdbjGGO_txSAuCZwfDbURINlbLIDVpvHhJWlPpmHh8QI4nz3jdOte69bPQPugc/exec?action=trip';
+  var API_URL = '';
   var CACHE_KEY = 'mu-trip-cache-v2';
 
   // 內建離線快照：由 GAS 的 exportPublicTripJson() 產生，換旅程時整段替換
@@ -584,7 +584,7 @@ nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: v
         day: i + 1,
         note: d.note || '',
         tip: d.tip || '',
-        items: d.items.map(function (it) { return [it.t, it.title, it.place || null]; })
+        items: d.items.map(function (it) { return [it.t, it.title, it.place || null, it.map || null]; })
       };
     });
     PLANS = [];
@@ -618,6 +618,15 @@ nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: v
   function $(id) { return document.getElementById(id); }
   function mapUrl(place) {
     return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place);
+  }
+  // 只接受 Google Maps 的網址；其他一律不當連結用（資料來自試算表，保險起見再檢查一次）
+  function safeMapUrl(u) {
+    u = String(u || '');
+    var ok = /^https:\/\/(www\.)?google\.[a-z.]+\/maps(\/|\?|$)/i.test(u) ||
+      /^https:\/\/maps\.google\.[a-z.]+\//i.test(u) ||
+      /^https:\/\/maps\.app\.goo\.gl\//i.test(u) ||
+      /^https:\/\/goo\.gl\/maps\//i.test(u);
+    return ok ? u : '';
   }
   function toMin(t) {
     var p = t.split(':');
@@ -656,7 +665,8 @@ nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: v
 
   function itemHtml(it, state) {
     var badge = state === 'now' ? '<span class="badge">現在</span>' : state === 'next' ? '<span class="badge">下一個</span>' : '';
-    var map = it[2] ? '<br><a class="map" href="' + mapUrl(it[2]) + '" target="_blank" rel="noopener">📍 地圖導航</a>' : '';
+    var href = safeMapUrl(it[3]) || (it[2] ? mapUrl(it[2]) : '');
+    var map = href ? '<br><a class="map" href="' + esc(href) + '" target="_blank" rel="noopener">📍 地圖導航</a>' : '';
     return '<li class="' + (state || '') + '">' +
       '<span class="t">' + esc(it[0]) + '</span>' +
       '<span class="what">' + badge + esc(it[1]) + map + '</span></li>';
