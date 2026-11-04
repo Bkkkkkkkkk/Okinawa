@@ -4,7 +4,7 @@ window.MU_CONFIG = {
   // GAS 部署網址 + ?action=trip
   // 例如：https://script.google.com/macros/s/xxxxxxxx/exec?action=trip
   // 要用「網頁應用程式」那個以 /exec 結尾的網址，存取權要設成「任何人」。
-  API_URL: '',
+  API_URL: 'https://script.google.com/macros/s/AKfycbw57rcdbjGGO_txSAuCZwfDbURINlbLIDVpvHhJWlPpmHh8QI4nz3jdOte69bPQPugc/exec?action=trip',
 
   // ---- 背景照片（選填）----
   // 檔名（和 index.html 放同一個資料夾，例如 'bg.jpg'）或 https 網址。留空就用原本的海洋漸層。
