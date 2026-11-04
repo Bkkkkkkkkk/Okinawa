@@ -9,7 +9,7 @@ window.MU_CONFIG = {
   // ---- 背景照片（選填）----
   // 檔名（和 index.html 放同一個資料夾，例如 'bg.jpg'）或 https 網址。留空就用原本的海洋漸層。
   // 圖片載入失敗時也會自動維持原本的樣子，不會破圖。
-  BG_IMAGE: '',
+  BG_IMAGE: 'bg.jpg',
   BG_POSITION: 'center',  // 照片對齊位置，例如 'center 40%'、'left center'，用來決定畫面裡露出照片的哪一塊
   BG_HEADER: true,        // 頁首使用照片（疊一層海水藍，標題才看得清楚）
   BG_PAGE: true,          // 整頁背景使用照片（淡淡地透出來）
