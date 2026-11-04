@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#1E88C8">
+<script src="config.js"></script>
 <title>Mu導遊的沖繩行程</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌺%3C/text%3E%3C/svg%3E">
 <!--
@@ -13,96 +15,160 @@
   - 資料來源：GAS 的 ?action=trip（公開行程 JSON，已用 public_title，不含人名、成員、帳務）
     顯示順序：有網路時抓最新 → 存進這支手機的瀏覽器快取 → 沒網路用快取 → 都沒有就用本檔內建的快照
   - 換旅程：改試算表，再到 GAS 執行 exportPublicTripJson()，把印出的 JSON 貼到下方 SNAPSHOT（離線保險）
-  - 上線前請把 API_URL 填成「GAS 部署網址?action=trip」
+  - 資料網址放在同資料夾的 config.js（API_URL = 「GAS 部署網址?action=trip」），這樣更新 index.html 不會把它蓋掉
   - 測試：網址後面加 ?now=2026-12-12T14:00 可以模擬「現在」（旅遊地當地時間）
   - 網址後面加 #all 直接開全部行程、#check 直接開行前提醒
 -->
 <style>
 :root {
-  --bg: #F2F7F9;
-  --surface: #FFFFFF;
-  --text: #112A40;
-  --muted: #4F6B7B;
-  --line: #C6D9E1;
-  --band: #17395A;
-  --on-band: #FFFFFF;
-  --accent: #D92D4B;
-  --on-accent: #FFFFFF;
-  --accent-soft: #FDE6EA;
-  --sea: #176E7B;
-  --sea-soft: #DDF0F2;
-  --sun: #F0B429;
+  --bg: #EAF6FD;          /* 淡天空，頁面底色 */
+  --surface: #FFFFFF;     /* 浪花白，卡片 */
+  --text: #0B2E4A;
+  --muted: #4F7390;
+  --line: #CDE6F5;
+  --ocean: #1E88C8;       /* 海洋藍 */
+  --ocean-mid: #1779B6;
+  --ocean-deep: #0B5E99;  /* 深海藍，白字底色與小字顏色 */
+  --link: #0B5E99;
+  --sky: #7CCBF2;         /* 天空藍 */
+  --sky-soft: #E1F3FD;
+  --foam: #F6FCFF;        /* 泡沫 */
+  --aqua: #19B5C4;
+  --aqua-soft: #E0F6F8;
+  --sand: #FFF3D6;        /* 沙灘，只用在提醒框 */
+  --sand-line: #F0B429;
+  --top1: #2796D6;
+  --top2: #1779B6;
+  --top3: #0B5E99;
+  --wavefoam: rgba(255, 255, 255, .45);
+  /* 頁首的泡泡 */
+  --bubbles:
+    radial-gradient(circle at 86% 32%, transparent 0 9px, rgba(255,255,255,.55) 10px 11px, rgba(255,255,255,.14) 12px 19px, transparent 20px),
+    radial-gradient(circle at 94% 64%, transparent 0 5px, rgba(255,255,255,.5) 6px 7px, rgba(255,255,255,.12) 8px 11px, transparent 12px),
+    radial-gradient(circle at 76% 72%, transparent 0 3px, rgba(255,255,255,.45) 4px 5px, transparent 6px),
+    radial-gradient(circle at 9% 80%, transparent 0 6px, rgba(255,255,255,.4) 7px 8px, rgba(255,255,255,.1) 9px 14px, transparent 15px);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0B1720;
-    --surface: #13263A;
-    --text: #EAF3F7;
-    --muted: #A3BCCA;
-    --line: #29445A;
-    --band: #1E4A73;
-    --on-band: #FFFFFF;
-    --accent: #FF6A82;
-    --on-accent: #2A0710;
-    --accent-soft: #3A1A26;
-    --sea: #66C7D4;
-    --sea-soft: #153A44;
-    --sun: #F0B429;
+    --bg: #06192A;
+    --surface: #0D2A42;
+    --text: #E6F4FC;
+    --muted: #9FC2DA;
+    --line: #1D4766;
+    --ocean: #4FB3EA;
+    --ocean-mid: #1F7DB8;
+    --ocean-deep: #14639B;
+    --link: #7CCBF2;
+    --sky: #5FB9E8;
+    --sky-soft: #10395A;
+    --foam: #0B2338;
+    --aqua: #4DD0DC;
+    --aqua-soft: #0F3A47;
+    --sand: #3B3217;
+    --sand-line: #E3B341;
+    --top1: #1A5F94;
+    --top2: #124A78;
+    --top3: #0A3556;
+    --wavefoam: rgba(255, 255, 255, .12);
   }
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; scroll-padding-top: 72px; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 64px; }
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "Heiti TC", sans-serif;
-  font-size: 20px;
-  line-height: 1.6;
+  font-size: 16px;
+  line-height: 1.55;
 }
 button { font: inherit; color: inherit; }
 a { color: inherit; }
-:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+:focus-visible { outline: 3px solid var(--ocean); outline-offset: 2px; }
 
-/* 頂部標題：深藍底配紅型風格的小圓點 */
+/* 頂部：海水漸層、泡泡、底部兩層浪花 */
 .top {
-  background-color: var(--band);
-  background-image:
-    radial-gradient(circle at 12px 12px, rgba(255,255,255,.12) 3px, transparent 4px),
-    radial-gradient(circle at 36px 36px, rgba(240,180,41,.22) 3px, transparent 4px);
-  background-size: 48px 48px;
-  color: var(--on-band);
-  padding: calc(env(safe-area-inset-top, 0px) + 18px) 20px 18px;
+  position: relative;
+  color: #fff;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) 18px 42px;
+  background-color: var(--top2);
+  background-image: var(--bubbles), linear-gradient(165deg, var(--top1) 0%, var(--top2) 55%, var(--top3) 100%);
 }
-.top h1 { margin: 0; font-size: 26px; line-height: 1.3; letter-spacing: .02em; }
-.top p { margin: 4px 0 0; font-size: 17px; opacity: .85; }
+.top h1 { margin: 0; font-size: 21px; line-height: 1.3; letter-spacing: .02em; }
+.top p { margin: 2px 0 0; font-size: 14px; opacity: .92; }
+/* 背景照片：頁首（疊一層海水藍漸層，字才看得清楚） */
+html.bg-header .top {
+  background-image:
+    var(--bubbles),
+    linear-gradient(165deg, rgba(39,150,214,.50) 0%, rgba(23,121,182,.42) 50%, rgba(11,94,153,.80) 100%),
+    var(--bg-img);
+  background-size: cover;
+  background-position: var(--bg-pos, center);
+}
+html.bg-header .top h1,
+html.bg-header .top p { text-shadow: 0 1px 6px rgba(0, 50, 100, .55); }
 
-main { max-width: 640px; margin: 0 auto; padding: 16px 16px 130px; }
+/* 背景照片：整頁（固定在最底層，蓋一層淡淡的天空色，卡片本身仍是不透明的白色） */
+html.bg-page body::before {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: -1;
+  background-image: linear-gradient(rgba(234,246,253,.84), rgba(234,246,253,.93)), var(--bg-img);
+  background-size: cover;
+  background-position: var(--bg-pos, center);
+}
+@media (prefers-color-scheme: dark) {
+  html.bg-page body::before {
+    background-image: linear-gradient(rgba(6,25,42,.88), rgba(6,25,42,.95)), var(--bg-img);
+  }
+}
+
+.wave { position: absolute; left: 0; bottom: -1px; width: 100%; height: 30px; display: block; }
+.wave .w1 { fill: var(--bg); }
+.wave .w2 { fill: var(--wavefoam); }
+
+main { max-width: 640px; margin: 0 auto; padding: 4px 14px 96px; }
 .page[hidden] { display: none; }
 
 /* 日期標題 */
 .dayhead {
-  background: var(--band);
-  color: var(--on-band);
-  border-radius: 14px 14px 0 0;
-  padding: 14px 18px;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--ocean-deep), var(--ocean-mid));
+  color: #fff;
+  border-radius: 16px 16px 0 0;
+  padding: 12px 16px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
-.dayhead .date { font-size: 40px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.dayhead .meta { display: flex; flex-direction: column; gap: 2px; }
-.dayhead .wd { font-size: 18px; opacity: .85; }
-.dayhead .ttl { font-size: 20px; font-weight: 700; line-height: 1.35; }
+.dayhead::after {
+  content: "";
+  position: absolute;
+  right: -16px;
+  top: -18px;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.28);
+  background: rgba(255,255,255,.08);
+}
+.dayhead .date { font-size: 30px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.dayhead .meta { display: flex; flex-direction: column; }
+.dayhead .wd { font-size: 13px; opacity: .9; }
+.dayhead .ttl { font-size: 16px; font-weight: 700; line-height: 1.35; }
 .daybadge {
+  position: relative;
+  z-index: 1;
   margin-left: auto;
   align-self: flex-start;
-  background: var(--accent);
-  color: var(--on-accent);
+  background: #fff;
+  color: var(--ocean-deep);
   font-weight: 800;
-  font-size: 17px;
-  padding: 2px 12px;
+  font-size: 13px;
+  padding: 1px 11px;
   border-radius: 999px;
   white-space: nowrap;
 }
@@ -111,88 +177,91 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 130px; }
   background: var(--surface);
   border: 1px solid var(--line);
   border-top: 0;
-  border-radius: 0 0 14px 14px;
-  padding: 6px 0 8px;
-  margin-bottom: 24px;
+  border-radius: 0 0 16px 16px;
+  padding: 4px 0 6px;
+  margin-bottom: 18px;
+  box-shadow: 0 6px 16px rgba(11, 94, 153, .10);
 }
 .note, .tip {
-  margin: 10px 14px 4px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  font-size: 18px;
+  margin: 8px 12px 2px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
 }
-.note { background: var(--sea-soft); border-left: 6px solid var(--sea); }
-.tip { background: var(--accent-soft); border-left: 6px solid var(--accent); }
+.note { background: var(--aqua-soft); border-left: 4px solid var(--aqua); }
+.tip { background: var(--sand); border-left: 4px solid var(--sand-line); }
 
 /* 時間軸 */
-.tl { list-style: none; margin: 0; padding: 4px 0; }
+.tl { list-style: none; margin: 0; padding: 2px 0; }
 .tl li {
   display: grid;
-  grid-template-columns: 92px 1fr;
-  gap: 4px 10px;
-  padding: 12px 16px 12px 12px;
-  border-left: 6px solid transparent;
+  grid-template-columns: 62px 1fr;
+  gap: 2px 10px;
+  padding: 11px 14px 11px 10px;
+  border-left: 4px solid transparent;
   border-bottom: 1px solid var(--line);
-  position: relative;
 }
 .tl li:last-child { border-bottom: 0; }
-.tl .t { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.25; text-align: right; }
-.tl .what { font-size: 20px; line-height: 1.5; }
+.tl .t { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.35; text-align: right; color: var(--link); }
+.tl .what { font-size: 16px; line-height: 1.5; }
 .badge {
   display: inline-block;
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 800;
-  padding: 0 10px;
+  padding: 0 8px;
   border-radius: 999px;
-  margin-right: 8px;
-  vertical-align: 2px;
+  margin-right: 6px;
+  vertical-align: 1px;
 }
-.tl li.past { opacity: .5; }
-.tl li.now { background: var(--accent-soft); border-left-color: var(--accent); }
-.tl li.now .badge { background: var(--accent); color: var(--on-accent); }
-.tl li.next { background: var(--sea-soft); border-left-color: var(--sea); }
-.tl li.next .badge { background: var(--sea); color: var(--surface); }
+.tl li.past { opacity: .55; }
+.tl li.now { background: var(--sky-soft); border-left-color: var(--ocean); }
+.tl li.now .badge { background: var(--ocean-deep); color: #fff; }
+.tl li.next { background: var(--foam); border-left-color: var(--sky); }
+.tl li.next .badge { background: var(--sky); color: #06304D; }
 
 .map {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-  min-height: 48px;
-  padding: 0 18px;
+  gap: 5px;
+  margin-top: 6px;
+  min-height: 44px;
+  padding: 0 14px;
   border-radius: 999px;
-  border: 2px solid var(--sea);
-  color: var(--sea);
-  font-size: 18px;
+  border: 1.5px solid var(--ocean);
+  background: var(--foam);
+  color: var(--link);
+  font-size: 14px;
   font-weight: 700;
   text-decoration: none;
 }
-.map:active { background: var(--sea-soft); }
+.map:active { background: var(--sky-soft); }
 
 /* 還沒出發／已結束 */
 .hello {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 26px 20px;
+  border-radius: 18px;
+  padding: 22px 18px;
   text-align: center;
+  box-shadow: 0 6px 16px rgba(11, 94, 153, .10);
 }
-.hello .flower { font-size: 56px; line-height: 1.1; }
-.hello p { margin: 10px 0 0; font-size: 22px; font-weight: 700; line-height: 1.5; }
-.hello small { display: block; margin-top: 8px; font-size: 18px; color: var(--muted); font-weight: 400; }
+.hello .flower { font-size: 44px; line-height: 1.1; }
+.hello p { margin: 8px 0 0; font-size: 18px; font-weight: 700; line-height: 1.5; }
+.hello small { display: block; margin-top: 6px; font-size: 14px; color: var(--muted); font-weight: 400; }
 .btn {
-  margin-top: 18px;
-  min-height: 56px;
-  padding: 0 28px;
+  margin-top: 14px;
+  min-height: 48px;
+  padding: 0 24px;
   border: 0;
   border-radius: 999px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 20px;
+  background: linear-gradient(135deg, var(--ocean-mid), var(--ocean-deep));
+  color: #fff;
+  font-size: 16px;
   font-weight: 800;
   cursor: pointer;
 }
-.btn.ghost { background: transparent; color: var(--muted); border: 2px solid var(--line); font-size: 17px; min-height: 48px; font-weight: 700; }
+.btn.ghost { background: transparent; color: var(--muted); border: 1.5px solid var(--line); font-size: 14px; min-height: 44px; font-weight: 700; }
 
 /* 全部行程的日期跳轉 */
 .jump {
@@ -201,70 +270,71 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 130px; }
   z-index: 5;
   display: flex;
   gap: 8px;
-  margin: 0 -16px 16px;
-  padding: 10px 16px;
+  margin: 0 -14px 12px;
+  padding: 8px 14px;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
 .jump a {
   flex: 1;
-  min-height: 48px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--line);
-  border-radius: 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
   background: var(--surface);
-  font-size: 19px;
+  color: var(--link);
+  font-size: 15px;
   font-weight: 800;
   text-decoration: none;
   font-variant-numeric: tabular-nums;
 }
-.jump a:active { border-color: var(--accent); }
+.jump a:active { background: var(--sky-soft); border-color: var(--ocean); }
 
 details.plan {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  margin-bottom: 14px;
+  border-radius: 16px;
+  margin-bottom: 10px;
 }
 details.plan summary {
-  min-height: 60px;
-  padding: 14px 18px;
-  font-size: 21px;
+  min-height: 52px;
+  padding: 12px 16px;
+  font-size: 16px;
   font-weight: 800;
   cursor: pointer;
   list-style-position: inside;
 }
-details.plan .inner { padding: 0 18px 14px; font-size: 19px; }
-details.plan h3 { margin: 12px 0 4px; font-size: 19px; }
-details.plan p { margin: 0 0 8px; }
+details.plan .inner { padding: 0 16px 12px; font-size: 15px; }
+details.plan h3 { margin: 10px 0 2px; font-size: 15px; color: var(--link); }
+details.plan p { margin: 0 0 6px; }
 
 /* 行前提醒 */
-.check-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 4px 2px 6px; }
-.check-head h2 { margin: 0; font-size: 24px; }
-.progress { font-size: 20px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
-.hint { margin: 0 2px 14px; font-size: 16px; color: var(--muted); }
+.check-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 2px 2px 4px; }
+.check-head h2 { margin: 0; font-size: 19px; }
+.progress { font-size: 16px; font-weight: 800; color: var(--link); font-variant-numeric: tabular-nums; }
+.hint { margin: 0 2px 10px; font-size: 13px; color: var(--muted); }
 .group {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  margin-bottom: 16px;
+  border-radius: 16px;
+  margin-bottom: 12px;
   overflow: hidden;
 }
-.group h3 { margin: 0; padding: 10px 16px; font-size: 18px; background: var(--sea-soft); color: var(--sea); }
+.group h3 { margin: 0; padding: 8px 14px; font-size: 14px; background: var(--sky-soft); color: var(--link); }
 .group label {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  min-height: 60px;
-  padding: 14px 16px;
+  gap: 12px;
+  min-height: 52px;
+  padding: 12px 14px;
   border-top: 1px solid var(--line);
-  font-size: 20px;
+  font-size: 16px;
   cursor: pointer;
 }
 .group h3 + label { border-top: 0; }
-.group input[type=checkbox] { width: 30px; height: 30px; flex: none; margin: 2px 0 0; accent-color: var(--accent); }
+.group input[type=checkbox] { width: 24px; height: 24px; flex: none; margin: 1px 0 0; accent-color: var(--ocean-deep); }
 .group input:checked + span { text-decoration: line-through; color: var(--muted); }
 .reset-wrap { text-align: center; }
 
@@ -277,28 +347,28 @@ nav.tabs {
   background: var(--surface);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -4px 14px rgba(11, 94, 153, .08);
 }
 nav.tabs button {
   flex: 1;
-  min-height: 68px;
-  padding: 8px 4px 6px;
+  min-height: 56px;
+  padding: 6px 4px 4px;
   border: 0;
-  border-top: 5px solid transparent;
+  border-top: 3px solid transparent;
   background: transparent;
   color: var(--muted);
-  font-size: 18px;
+  font-size: 12px;
   font-weight: 700;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0;
   cursor: pointer;
 }
-nav.tabs button .ico { font-size: 26px; line-height: 1.2; }
-nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: var(--accent); font-weight: 800; }
+nav.tabs button .ico { font-size: 20px; line-height: 1.2; }
+nav.tabs button[aria-current="page"] { color: var(--link); border-top-color: var(--ocean); font-weight: 800; }
 
-.foot { margin: 8px 4px 0; font-size: 16px; color: var(--muted); text-align: center; }
+.foot { margin: 6px 4px 0; font-size: 13px; color: var(--muted); text-align: center; }
 </style>
 </head>
 <body>
@@ -306,12 +376,18 @@ nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: v
 <header class="top">
   <h1 id="ttl">🌺 旅程</h1>
   <p id="sub">Mu導遊的行程小冊</p>
+  <svg class="wave" viewBox="0 0 1200 48" preserveAspectRatio="none" aria-hidden="true">
+    <path class="w2" d="M0 26 C120 6 240 6 360 22 S600 40 720 24 S960 6 1080 22 S1160 30 1200 24 V48 H0 Z"/>
+    <path class="w1" d="M0 34 C150 16 300 16 450 32 S750 46 900 30 S1130 18 1200 30 V48 H0 Z"/>
+  </svg>
 </header>
 
 <main>
   <section id="page-today" class="page" aria-label="今日行程"></section>
   <section id="page-all" class="page" aria-label="全部行程" hidden></section>
   <section id="page-check" class="page" aria-label="行前提醒" hidden></section>
+  <p class="foot" id="stamp"></p>
+  <p class="foot" id="credit" hidden></p>
   <noscript><p>這個頁面需要開啟 JavaScript 才能顯示行程。</p></noscript>
 </main>
 
@@ -326,8 +402,8 @@ nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: v
   'use strict';
 
   /* ---------- 設定（上線前要改） ---------- */
-  // GAS 部署網址 + ?action=trip。留空就只用快取與內建快照
-  var API_URL = 'https://script.google.com/macros/s/AKfycbw57rcdbjGGO_txSAuCZwfDbURINlbLIDVpvHhJWlPpmHh8QI4nz3jdOte69bPQPugc/exec?action=trip';
+  // GAS 部署網址 + ?action=trip，放在 config.js（window.MU_CONFIG.API_URL）。沒設定就只用快取與內建快照
+  var API_URL = (window.MU_CONFIG && window.MU_CONFIG.API_URL) || '';
   var CACHE_KEY = 'mu-trip-cache-v2';
 
   // 內建離線快照：由 GAS 的 exportPublicTripJson() 產生，換旅程時整段替換
@@ -553,6 +629,8 @@ nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: v
 
   /* ---------- 資料 ---------- */
   var DATA = null;
+  var SOURCE = 'snapshot';   // 目前資料來源：snapshot 內建備援／cache 手機快取／live 剛抓到的最新
+  var FETCH_STATE = '';      // ''、nourl 沒設資料網址、fail 連線失敗、bad 回傳內容不對
   var TRIP = [], PLANS = [], CHECK = [], TZ = 'Asia/Tokyo', TRIP_SHORT = '當地', CHECK_KEY = 'mu-check-v2';
 
   function usable(d) { return !!(d && d.days && d.days.length); }
@@ -566,7 +644,8 @@ nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: v
   // 內建快照與手機快取，取比較新的那一份
   function pickInitial() {
     var cached = loadCached();
-    if (cached && stamp(cached) >= stamp(SNAPSHOT)) return cached;
+    if (cached && stamp(cached) >= stamp(SNAPSHOT)) { SOURCE = 'cache'; return cached; }
+    SOURCE = 'snapshot';
     return SNAPSHOT;
   }
 
@@ -682,6 +761,30 @@ nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: v
     return html + '</div>';
   }
 
+  /* ---------- 資料狀態（頁面最下方一行，一眼看出現在顯示的是不是最新資料） ---------- */
+  function fmtTime(iso) {
+    try {
+      return new Intl.DateTimeFormat('zh-TW', {
+        timeZone: TZ, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+      }).format(new Date(iso));
+    } catch (e) { return ''; }
+  }
+  function stampText() {
+    var t = DATA && DATA.generatedAt ? fmtTime(DATA.generatedAt) : '';
+    var s;
+    if (SOURCE === 'live') s = '最新' + (t ? '（' + t + ' 取得）' : '');
+    else if (SOURCE === 'cache') s = '手機快取，可能不是最新' + (t ? '（' + t + '）' : '');
+    else s = '內建備援，不是最新';
+    if (FETCH_STATE === 'nourl') s += '・網頁還沒設定資料網址';
+    else if (FETCH_STATE === 'fail') s += '・連不上最新資料';
+    else if (FETCH_STATE === 'bad') s += '・最新資料格式不對';
+    return '行程資料：' + s;
+  }
+  function updateStamp() {
+    var el = $('stamp');
+    if (el) el.textContent = stampText();
+  }
+
   /* ---------- 今日行程 ---------- */
   function renderToday() {
     var now = localNow();
@@ -693,12 +796,12 @@ nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: v
       var first = TRIP[0], last = TRIP[TRIP.length - 1];
       if (now.date < first.date) {
         var n = daysBetween(now.date, first.date);
-        el.innerHTML = '<div class="hello"><div class="flower">🌺</div>' +
+        el.innerHTML = '<div class="hello"><div class="flower">🌊</div>' +
           '<p>還沒出發啦～<br>距離 ' + esc(first.short) + ' 出發還有 ' + n + ' 天！</p>' +
           '<small>Mu導遊正在' + esc(TRIP_SHORT) + '曬太陽，等小Mu的貴賓們來玩 🏝️</small>' +
           '<button type="button" class="btn" data-go="all">先看全部行程</button></div>';
       } else if (now.date > last.date) {
-        el.innerHTML = '<div class="hello"><div class="flower">🌺</div>' +
+        el.innerHTML = '<div class="hello"><div class="flower">🌊</div>' +
           '<p>旅程結束囉！<br>謝謝小Mu的貴賓們</p>' +
           '<small>Mu導遊玩得好開心，下次再一起出發～</small>' +
           '<button type="button" class="btn" data-go="all">回顧全部行程</button></div>';
@@ -798,6 +901,7 @@ nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: v
     if (!fromHash) {
       try { history.replaceState(null, '', '#' + tab); } catch (e) { /* 部分內建瀏覽器不支援，忽略 */ }
     }
+    updateStamp();
     window.scrollTo(0, 0);
   }
 
@@ -813,27 +917,41 @@ nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: v
     if (current === 'today') renderToday();
     else if (current === 'all') { renderAll(); rendered.all = true; }
     else renderCheck();
+    updateStamp();
   }
 
   /* ---------- 有網路時抓最新資料 ---------- */
   function refresh() {
-    if (!API_URL || typeof fetch !== 'function') return;
+    if (!API_URL) { FETCH_STATE = 'nourl'; updateStamp(); return; }
+    if (typeof fetch !== 'function') return;
     var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 6000) : null;
-    fetch(API_URL, ctrl ? { signal: ctrl.signal } : {})
+    // 加上時間參數與 no-store，避免瀏覽器或 LINE 內建瀏覽器拿到舊的回應
+    var url = API_URL + (API_URL.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
+    var opts = { cache: 'no-store' };
+    if (ctrl) opts.signal = ctrl.signal;
+    fetch(url, opts)
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (timer) clearTimeout(timer);
-        if (!usable(d)) return;
+        if (!usable(d)) { FETCH_STATE = 'bad'; updateStamp(); return; }
+        FETCH_STATE = '';
+        SOURCE = 'live';
         if (fingerprint(d) !== fingerprint(DATA)) {
           DATA = d;
           saveCached(d);
           rerender();
         } else {
+          DATA = d;
           saveCached(d); // 內容相同也更新時間戳，下次離線可用
+          updateStamp();
         }
       })
-      .catch(function () { /* 沒網路或逾時：繼續用現有資料 */ });
+      .catch(function () {
+        // 沒網路或逾時：繼續用現有資料，並在頁面最下方註明
+        FETCH_STATE = 'fail';
+        updateStamp();
+      });
   }
 
   /* ---------- 事件 ---------- */
@@ -877,7 +995,33 @@ nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: v
     }
   });
 
+  /* ---------- 背景照片（選填，設定在 config.js） ---------- */
+  // 只在圖片真的載入成功時才套用；檔案不存在或載入失敗，就維持原本的海洋漸層
+  function applyBackground() {
+    var c = window.MU_CONFIG || {};
+    var u = String(c.BG_IMAGE || '').trim();
+    if (!u) return;
+    // 只接受 https 網址，或同資料夾的檔名（例如 bg.jpg）
+    if (!/^(https:\/\/[^\s"'()\\]+|[\w\-.\/%]+)$/.test(u)) return;
+    var abs;
+    try { abs = new URL(u, location.href).href; } catch (e) { return; }
+    var img = new Image();
+    img.onload = function () {
+      var root = document.documentElement;
+      root.style.setProperty('--bg-img', 'url("' + abs + '")');
+      if (c.BG_POSITION) root.style.setProperty('--bg-pos', String(c.BG_POSITION).replace(/[^\w\s%.\-]/g, ''));
+      if (c.BG_HEADER !== false) root.classList.add('bg-header');
+      if (c.BG_PAGE !== false) root.classList.add('bg-page');
+      if (c.BG_CREDIT) {
+        var el = $('credit');
+        if (el) { el.textContent = '背景照片：' + c.BG_CREDIT; el.hidden = false; }
+      }
+    };
+    img.src = abs;
+  }
+
   /* ---------- 啟動 ---------- */
+  applyBackground();
   DATA = pickInitial();
   build();
   show(tabFromHash(), true);
