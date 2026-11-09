@@ -18,6 +18,8 @@
   - 資料網址放在同資料夾的 config.js（API_URL = 「GAS 部署網址?action=trip」），這樣更新 index.html 不會把它蓋掉
   - 測試：網址後面加 ?now=2026-12-12T14:00 可以模擬「現在」（旅遊地當地時間）
   - 網址後面加 #all 直接開全部行程、#check 直接開行前提醒
+  - 「我的清單」分頁：私訊 Mu導遊打「清單連結」領取專屬連結（網址#mine=金鑰），沒有金鑰就不會出現這個分頁。
+    金鑰只存在那支手機的瀏覽器，這支網頁檔案本身不含任何個人資料
 -->
 <style>
 :root {
@@ -368,6 +370,22 @@ nav.tabs button {
 nav.tabs button .ico { font-size: 20px; line-height: 1.2; }
 nav.tabs button[aria-current="page"] { color: var(--link); border-top-color: var(--ocean); font-weight: 800; }
 
+/* 我的清單（專屬連結） */
+nav.tabs button[hidden] { display: none; }
+.mlbox { margin-bottom: 18px; }
+.mlmsg { margin: 0 0 10px; padding: 9px 12px; border-radius: 12px; background: var(--sky-soft); border-left: 4px solid var(--ocean); font-size: 14px; white-space: pre-line; }
+.mlrow { display: flex; align-items: stretch; border-top: 1px solid var(--line); }
+.mlrow:first-child { border-top: 0; }
+.group .mlrow label { flex: 1; border-top: 0; padding-right: 6px; }
+.mldel { flex: none; width: 48px; border: 0; background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; }
+.mldel:active { color: var(--link); }
+.mlempty { padding: 16px 14px; color: var(--muted); font-size: 15px; }
+.mladd { display: flex; gap: 8px; margin: 10px 0 6px; }
+.mladd input { flex: 1; min-width: 0; min-height: 48px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 16px; }
+.mladd .btn { margin-top: 0; padding: 0 20px; }
+.mltools { display: flex; gap: 8px; flex-wrap: wrap; }
+.mltools .btn { margin-top: 4px; }
+
 .foot { margin: 6px 4px 0; font-size: 13px; color: var(--muted); text-align: center; }
 </style>
 </head>
@@ -386,6 +404,7 @@ nav.tabs button[aria-current="page"] { color: var(--link); border-top-color: var
   <section id="page-today" class="page" aria-label="今日行程"></section>
   <section id="page-all" class="page" aria-label="全部行程" hidden></section>
   <section id="page-check" class="page" aria-label="行前提醒" hidden></section>
+  <section id="page-mine" class="page" aria-label="我的清單" hidden></section>
   <p class="foot" id="stamp"></p>
   <p class="foot" id="credit" hidden></p>
   <noscript><p>這個頁面需要開啟 JavaScript 才能顯示行程。</p></noscript>
@@ -395,6 +414,7 @@ nav.tabs button[aria-current="page"] { color: var(--link); border-top-color: var
   <button type="button" data-tab="today"><span class="ico">📅</span>今日行程</button>
   <button type="button" data-tab="all"><span class="ico">🗺️</span>全部行程</button>
   <button type="button" data-tab="check"><span class="ico">🧳</span>行前提醒</button>
+  <button type="button" data-tab="mine" id="nav-mine" hidden><span class="ico">📝</span>我的清單</button>
 </nav>
 
 <script>
@@ -881,8 +901,222 @@ nav.tabs button[aria-current="page"] { color: var(--link); border-top-color: var
     $('page-check').dataset.total = total;
   }
 
+  /* ---------- 我的清單（專屬連結；私訊 Mu導遊打「清單連結」領取） ---------- */
+  var ML_KEY = 'mu-ml-token';
+  var ML_CACHE = 'mu-ml-cache';
+  var ML_TOKEN = '';
+  var ML = null;          // 最近一次拿到的資料：{ me: {items}, fam: {name, members, items} | null, nick }
+  var mlQueue = [];       // 還沒送出的操作，一次送一個、照順序
+  var mlRunning = false;
+  var mlMsg = '';
+  var mlMsgTimer = null;
+  var mlNote = '';
+
+  // 從網址的 #mine=金鑰 讀到金鑰後，存進這支手機的瀏覽器，並把它從網址列拿掉（避免被截圖、轉傳）
+  function initToken() {
+    var m = /[#&]mine=([0-9a-f]{64})/.exec(location.hash || '');
+    if (m) {
+      ML_TOKEN = m[1];
+      try { localStorage.setItem(ML_KEY, ML_TOKEN); } catch (e) { /* 存不了也沒關係，這次還是能用 */ }
+      try { history.replaceState(null, '', location.pathname + location.search + '#mine'); } catch (e) { /* 部分內建瀏覽器不支援 */ }
+      return;
+    }
+    try { ML_TOKEN = localStorage.getItem(ML_KEY) || ''; } catch (e) { ML_TOKEN = ''; }
+    if (!/^[0-9a-f]{64}$/.test(ML_TOKEN)) ML_TOKEN = '';
+  }
+
+  function syncMineTab() {
+    var b = $('nav-mine');
+    if (b) b.hidden = !ML_TOKEN;
+  }
+
+  function mlForget() {
+    ML_TOKEN = '';
+    ML = null;
+    mlQueue = [];
+    try { localStorage.removeItem(ML_KEY); localStorage.removeItem(ML_CACHE); } catch (e) { /* 忽略 */ }
+    syncMineTab();
+  }
+
+  function mlUrl(params) {
+    var q = 'action=mylist&t=' + ML_TOKEN;
+    Object.keys(params).forEach(function (k) { q += '&' + k + '=' + encodeURIComponent(params[k]); });
+    return API_URL.split('?')[0] + '?' + q + '&_=' + Date.now();
+  }
+
+  function mlCall(params) {
+    if (!API_URL || typeof fetch !== 'function') return Promise.reject(new Error('nourl'));
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 20000) : null;
+    var opts = { cache: 'no-store' };
+    if (ctrl) opts.signal = ctrl.signal;
+    return fetch(mlUrl(params), opts)
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (timer) clearTimeout(timer); return d; });
+  }
+
+  function mlFlash(text, isErr) {
+    mlMsg = text || '';
+    var el = $('ml-msg');
+    if (el) { el.textContent = mlMsg; el.hidden = !mlMsg; }
+    if (mlMsgTimer) clearTimeout(mlMsgTimer);
+    mlMsgTimer = setTimeout(function () {
+      mlMsg = '';
+      var e2 = $('ml-msg');
+      if (e2) e2.hidden = true;
+    }, isErr ? 8000 : 5000);
+  }
+
+  function mlUpdateSync() {
+    var el = $('ml-sync');
+    if (el) el.textContent = (mlRunning || mlQueue.length) ? '　同步中…' : '';
+  }
+
+  // 排進佇列，一次送一個。連點好幾項時畫面立刻有反應，後面慢慢同步；全部送完才以伺服器的資料重畫
+  function mlDo(params) {
+    mlQueue.push(params);
+    mlUpdateSync();
+    mlPump();
+  }
+
+  function mlPump() {
+    if (mlRunning || !mlQueue.length) return;
+    mlRunning = true;
+    mlUpdateSync();
+    var params = mlQueue.shift();
+    mlCall(params).then(function (d) {
+      mlRunning = false;
+      if (!d || !d.ok) { mlQueue = []; mlApply(d); return; }
+      if (mlQueue.length) { mlPump(); return; }
+      mlApply(d);
+    }).catch(function () {
+      mlRunning = false;
+      mlQueue = [];
+      mlFlash('連不上伺服器，這次的操作沒有成功', true);
+      mlLoad();
+    });
+  }
+
+  function mlApply(d) {
+    if (!d || !d.ok) {
+      var err = d && d.error;
+      if (err === 'invalid') {
+        mlNote = '這條連結已經失效（可能被重設或停用了）。請私訊 Mu導遊，打「清單連結」取得新的。';
+        mlForget();
+        renderMine();
+        return;
+      }
+      mlFlash(err === 'not_member' ? '你還不是已登記的貴賓，請先在群組登記暱稱'
+        : err === 'no_family' ? '你還沒有加入家庭共用清單'
+        : '出了點狀況，請稍後再試', true);
+      mlLoad();
+      return;
+    }
+    ML = { me: d.me, fam: d.fam, nick: d.nick };
+    try { localStorage.setItem(ML_CACHE, JSON.stringify(ML)); } catch (e) { /* 忽略 */ }
+    if (d.msg) { mlMsg = d.msg; }
+    renderMine();
+    if (d.msg) mlFlash(d.msg, false);
+  }
+
+  // 載入：先顯示上次存的內容（離線也看得到），再去抓最新的
+  function mlLoad() {
+    if (!ML_TOKEN) { renderMine(); return; }
+    if (!ML) {
+      try {
+        ML = JSON.parse(localStorage.getItem(ML_CACHE) || 'null');
+        if (ML) ML.stale = true;
+      } catch (e) { ML = null; }
+    }
+    renderMine();
+    mlCall({ op: 'get' }).then(function (d) {
+      if (!d || !d.ok) { mlApply(d); return; }
+      ML = { me: d.me, fam: d.fam, nick: d.nick };
+      try { localStorage.setItem(ML_CACHE, JSON.stringify(ML)); } catch (e) { /* 忽略 */ }
+      renderMine();
+    }).catch(function () {
+      if (ML) { ML.stale = true; renderMine(); }
+      mlFlash('連不上伺服器，顯示的是上次的內容', true);
+    });
+  }
+
+  function mlList(scope) {
+    return ML ? (scope === 'fam' ? ML.fam : ML.me) : null;
+  }
+
+  // 勾選：畫面先翻過來（馬上有反應），再送「完成／取消完成」給伺服器。用明確的完成／取消完成而不是「切換」，連點也不會錯亂
+  function mlToggle(scope, id) {
+    var list = mlList(scope);
+    if (!list) return;
+    var now = 0;
+    var found = false;
+    list.items.forEach(function (x) { if (x.i === id) { x.d = x.d ? 0 : 1; now = x.d; found = true; } });
+    if (!found) return;
+    renderMine();
+    mlDo({ op: now ? 'done' : 'undone', scope: scope, id: id });
+  }
+
+  function mlAdd(scope) {
+    var input = $('ml-add-' + scope);
+    var text = input ? input.value.trim() : '';
+    if (!text) return;
+    input.value = '';
+    mlDo({ op: 'add', scope: scope, text: text });
+  }
+
+  function mlDelete(scope, id) {
+    var list = mlList(scope);
+    var name = '';
+    if (list) list.items.forEach(function (x) { if (x.i === id) name = x.t; });
+    if (typeof window.confirm === 'function' && !window.confirm('要刪除「' + name + '」嗎？')) return;
+    mlDo({ op: 'del', scope: scope, id: id });
+  }
+
+  function mlListHtml(scope, title, list, hint) {
+    var items = list.items || [];
+    var done = items.filter(function (x) { return x.d; }).length;
+    var h = '<div class="mlbox"><div class="check-head"><h2>' + esc(title) + '</h2><span class="progress">' + done + ' / ' + items.length + '</span></div>';
+    if (hint) h += '<p class="hint">' + esc(hint) + '</p>';
+    h += '<div class="group">';
+    if (!items.length) h += '<div class="mlempty">還沒有項目，在下面新增吧</div>';
+    items.forEach(function (x) {
+      h += '<div class="mlrow"><label><input type="checkbox" data-ml-toggle="' + scope + '" data-ml-id="' + x.i + '"' + (x.d ? ' checked' : '') +
+        '><span>' + esc(x.t) + '</span></label><button type="button" class="mldel" data-ml-del="' + scope + '" data-ml-id="' + x.i +
+        '" aria-label="刪除 ' + esc(x.t) + '">✕</button></div>';
+    });
+    h += '</div>';
+    h += '<div class="mladd"><input type="text" id="ml-add-' + scope + '" placeholder="新增項目（空白或頓號可一次加多項）" maxlength="200" autocomplete="off">' +
+      '<button type="button" class="btn" data-ml-add="' + scope + '">加入</button></div>';
+    h += '<div class="mltools"><button type="button" class="btn ghost" data-ml-import="' + scope + '">匯入共用清單</button>' +
+      '<button type="button" class="btn ghost" data-ml-deldone="' + scope + '">刪除已完成</button></div></div>';
+    return h;
+  }
+
+  function renderMine() {
+    var el = $('page-mine');
+    if (!ML_TOKEN) {
+      el.innerHTML = '<div class="hello"><div class="flower">📝</div><p>這是「我的清單」專屬頁</p><small>' +
+        esc(mlNote || '請私訊 Mu導遊，打「清單連結」取得你的專屬連結，用它開啟這個頁面。') + '</small></div>';
+      return;
+    }
+    var h = '<p id="ml-msg" class="mlmsg"' + (mlMsg ? '' : ' hidden') + '>' + esc(mlMsg) + '</p>';
+    if (!ML) {
+      el.innerHTML = h + '<div class="hello"><p>載入中…</p></div>';
+      return;
+    }
+    h += '<p class="hint">這是你的專屬頁面，連結不要轉傳給別人。' + (ML.stale ? '（目前顯示的是上次的內容）' : '') +
+      '<span id="ml-sync"></span></p>';
+    h += mlListHtml('me', '我的行前清單', ML.me, ML.nick ? ML.nick + ' 的清單，只有你看得到' : '');
+    if (ML.fam) {
+      h += mlListHtml('fam', '家庭共用：' + ML.fam.name, ML.fam,
+        '成員：' + ML.fam.members.join('、') + '（只有你們看得到，大家改的是同一份）');
+    }
+    el.innerHTML = h;
+    mlUpdateSync();
+  }
+
   /* ---------- 分頁切換 ---------- */
-  var TABS = ['today', 'all', 'check'];
+  var TABS = ['today', 'all', 'check', 'mine'];
   var rendered = { all: false };
   var current = 'today';
 
@@ -898,6 +1132,7 @@ nav.tabs button[aria-current="page"] { color: var(--link); border-top-color: var
     if (tab === 'today') renderToday();
     if (tab === 'all' && !rendered.all) { renderAll(); rendered.all = true; }
     if (tab === 'check') renderCheck();
+    if (tab === 'mine') mlLoad();
     if (!fromHash) {
       try { history.replaceState(null, '', '#' + tab); } catch (e) { /* 部分內建瀏覽器不支援，忽略 */ }
     }
@@ -906,7 +1141,7 @@ nav.tabs button[aria-current="page"] { color: var(--link); border-top-color: var
   }
 
   function tabFromHash() {
-    var h = (location.hash || '').replace('#', '');
+    var h = (location.hash || '').replace('#', '').split(/[=&]/)[0]; // 例如 #mine=金鑰 → mine
     return TABS.indexOf(h) >= 0 ? h : 'today';
   }
 
@@ -916,6 +1151,7 @@ nav.tabs button[aria-current="page"] { color: var(--link); border-top-color: var
     rendered.all = false;
     if (current === 'today') renderToday();
     else if (current === 'all') { renderAll(); rendered.all = true; }
+    else if (current === 'mine') renderMine();
     else renderCheck();
     updateStamp();
   }
@@ -967,12 +1203,28 @@ nav.tabs button[aria-current="page"] { color: var(--link); border-top-color: var
         return;
       }
       if (t.id === 'reset') { saveChecked({}); renderCheck(); return; }
+      if (t.getAttribute) {
+        var a;
+        if ((a = t.getAttribute('data-ml-del'))) { mlDelete(a, parseInt(t.getAttribute('data-ml-id'), 10)); return; }
+        if ((a = t.getAttribute('data-ml-add'))) { mlAdd(a); return; }
+        if ((a = t.getAttribute('data-ml-import'))) { mlDo({ op: 'import', scope: a }); return; }
+        if ((a = t.getAttribute('data-ml-deldone'))) { mlDo({ op: 'deldone', scope: a }); return; }
+      }
       t = t.parentNode;
     }
   });
 
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (e.key === 'Enter' && t && t.id && t.id.indexOf('ml-add-') === 0) mlAdd(t.id.slice(7));
+  });
+
   document.addEventListener('change', function (e) {
     var t = e.target;
+    if (t && t.matches && t.matches('input[type=checkbox][data-ml-toggle]')) {
+      mlToggle(t.getAttribute('data-ml-toggle'), parseInt(t.getAttribute('data-ml-id'), 10));
+      return;
+    }
     if (t && t.matches && t.matches('input[type=checkbox][data-id]')) {
       var checked = loadChecked();
       if (t.checked) checked[t.getAttribute('data-id')] = 1;
@@ -991,6 +1243,7 @@ nav.tabs button[aria-current="page"] { color: var(--link); border-top-color: var
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) {
       if (!$('page-today').hidden) renderToday();
+      if (current === 'mine' && ML_TOKEN && !mlRunning && !mlQueue.length) mlLoad();
       refresh();
     }
   });
@@ -1022,6 +1275,8 @@ nav.tabs button[aria-current="page"] { color: var(--link); border-top-color: var
 
   /* ---------- 啟動 ---------- */
   applyBackground();
+  initToken();
+  syncMineTab();
   DATA = pickInitial();
   build();
   show(tabFromHash(), true);
